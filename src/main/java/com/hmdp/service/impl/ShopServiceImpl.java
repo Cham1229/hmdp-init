@@ -9,6 +9,7 @@ import com.hmdp.dto.Result;
 import com.hmdp.entity.Shop;
 import com.hmdp.mapper.ShopMapper;
 import com.hmdp.service.IShopService;
+import com.hmdp.utils.CacheClient;
 import com.hmdp.utils.RedisConstants;
 import com.hmdp.utils.RedisData;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -38,7 +39,8 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
-
+    @Resource
+    private CacheClient cacheClient;
 
     /**
      * 根据id查询商铺信息
@@ -47,13 +49,12 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
      */
     @Override
     public Result queryById(Long id) throws InterruptedException {
-        // 缓存穿透
-        //Shop shop = queryWithPassThrough( id);
-        // 互斥锁
+        // 解决缓存穿透
+        Shop shop = cacheClient.queryWithPassThrough(CACHE_SHOP_KEY, id, Shop.class, this::getById, CACHE_SHOP_TTL, TimeUnit.MINUTES);
+        // 互斥锁解决缓存击穿
         //Shop shop = queryWithMutex(id);
-
         // 逻辑过期解决缓存击穿
-        Shop shop = queryWithLogicalExpire(id);
+        //Shop shop = cacheClient.queryWithLogicalExpire(CACHE_SHOP_KEY, id, Shop.class, this::getById, CACHE_SHOP_TTL, TimeUnit.MINUTES);
 
         if (shop == null) {
             return Result.fail("店铺不存在！");
@@ -62,7 +63,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         return Result.ok(shop);
     }
 
-    private static final ExecutorService CACHE_REBUILD_EXECUTOR = Executors.newFixedThreadPool(10);
+    public static final ExecutorService CACHE_REBUILD_EXECUTOR = Executors.newFixedThreadPool(10);
 
     public Shop queryWithLogicalExpire(Long id){
         // 1.从Redis中查询商铺缓存
@@ -108,10 +109,6 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
         // 6.4.返回过期商铺信息
         return shop;
-
-
-
-
     }
 
     public Shop queryWithMutex(Long id) throws InterruptedException {
@@ -154,6 +151,12 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         return shop;
     }
 
+    /**
+     * 根据ID查询商铺信息，使用Redis缓存穿透解决方案
+     *
+     * @param id 商铺ID
+     * @return 商铺信息，如果不存在则返回null
+     */
     public Shop queryWithPassThrough(Long id){
         // 1.从Redis中查询商铺缓存
         String shopJson = stringRedisTemplate.opsForValue().get(CACHE_SHOP_KEY + id);
