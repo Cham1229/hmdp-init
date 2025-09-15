@@ -65,6 +65,17 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     public static final ExecutorService CACHE_REBUILD_EXECUTOR = Executors.newFixedThreadPool(10);
 
+
+        /**
+     * 通过逻辑过期方式查询商铺信息（带缓存重建机制）
+     * <p>
+     * 该方法首先从Redis缓存中查询指定ID的商铺数据。如果缓存未命中或已过期，
+     * 则尝试获取分布式锁并异步重建缓存，同时立即返回当前过期数据以保证响应性能。
+     * </p>
+     *
+     * @param id 商铺ID，用于标识要查询的商铺
+     * @return 商铺信息对象；若缓存中不存在则返回null
+     */
     public Shop queryWithLogicalExpire(Long id){
         // 1.从Redis中查询商铺缓存
         String shopJson = stringRedisTemplate.opsForValue().get(CACHE_SHOP_KEY + id);
@@ -96,6 +107,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
                 // 5.2.未过期，直接返回数据
                 return shop;
             }
+            // 2. 提交异步任务到线程池
             CACHE_REBUILD_EXECUTOR.submit(() -> {
                 // 重建缓存
                 this.saveShop2Redis(id, 20L);
@@ -111,6 +123,14 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         return shop;
     }
 
+
+        /**
+     * 使用互斥锁查询商铺信息
+     *
+     * @param id 商铺ID
+     * @return 商铺信息，如果不存在则返回null
+     * @throws InterruptedException 线程中断异常
+     */
     public Shop queryWithMutex(Long id) throws InterruptedException {
         // 1.从Redis中查询商铺缓存
         String shopJson = stringRedisTemplate.opsForValue().get(CACHE_SHOP_KEY + id);
@@ -125,12 +145,12 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
             return null;
         }
 
-        //获取互斥锁
+        // 获取互斥锁，防止缓存击穿
         String lockKey = RedisConstants.LOCK_SHOP_KEY + id;
         boolean isLock = tryLock(lockKey);
         // 4.判断是否获取成功
         if (!isLock){
-            //获取锁失败
+            //获取锁失败，等待后重试
             Thread.sleep(50);
             return queryWithMutex( id);
         }
@@ -139,7 +159,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         Shop shop = getById(id);
         // 5.数据库不存在，返回错误
         if (shop == null){
-            //将空值写入Redis
+            //将空值写入Redis，防止缓存穿透
             stringRedisTemplate.opsForValue().set(CACHE_SHOP_KEY + id, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
             return null;
         }
@@ -150,6 +170,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
         return shop;
     }
+
 
     /**
      * 根据ID查询商铺信息，使用Redis缓存穿透解决方案
