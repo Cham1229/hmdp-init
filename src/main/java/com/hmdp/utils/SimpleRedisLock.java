@@ -2,6 +2,7 @@ package com.hmdp.utils;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 public class SimpleRedisLock implements ILock{
