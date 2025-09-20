@@ -20,6 +20,11 @@ public class RedisIdWorker {
     private StringRedisTemplate stringRedisTemplate;
 
 
+    /**
+     * 生成分布式ID
+     * @param keyPrefix Redis键前缀，用于区分不同业务场景的ID生成
+     * @return 生成的唯一ID，包含时间戳和序列号信息
+     */
     public long nextId(String keyPrefix) {
         //生成时间戳
         LocalDateTime now = LocalDateTime.now();
@@ -29,8 +34,10 @@ public class RedisIdWorker {
         //生成序列号
         String date = now.format(DateTimeFormatter.ofPattern("yyyy:MM:dd"));
         long count = stringRedisTemplate.opsForValue().increment("icr:" + keyPrefix + ":" + date);
+
         //拼接并返回
         return timestamp << COUNT_BITS | count;
 
     }
+
 }

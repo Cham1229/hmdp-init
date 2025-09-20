@@ -4,11 +4,11 @@
 --- DateTime: 2025/9/17 11:11
 ---
 --获取锁
-local id = redis.call("get", KEYS[1])
+local id = redis.call('get', KEYS[1])
 --锁匹配
 if(id ==ARGV[1]) then
     --释放锁
-    return redis.call("del", KEYS[1])
+    return redis.call('del', KEYS[1])
 end
 --锁不匹配
 return 0
