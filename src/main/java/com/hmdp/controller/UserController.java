@@ -84,4 +84,23 @@ public class UserController {
         // 返回
         return Result.ok(info);
     }
+
+    /**
+     * 根据用户ID查询用户详情
+     * @param userId 用户ID
+     * @return 用户信息DTO对象，如果用户不存在则返回空结果
+     */
+    @GetMapping("/{id}")
+    public Result queryUserById(@PathVariable("id") Long userId) {
+        // 查询用户详情信息
+        User user = userService.getById(userId);
+        if (user == null) {
+            return Result.ok();
+        }
+        UserDTO userDTO = new UserDTO();
+        BeanUtils.copyProperties(user, userDTO);
+        // 返回用户信息
+        return Result.ok(userDTO);
+    }
+
 }
