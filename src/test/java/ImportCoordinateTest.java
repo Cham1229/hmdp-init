@@ -50,4 +50,33 @@ public class ImportCoordinateTest {
             stringRedisTemplate.opsForGeo().add(key, locations);
         }
     }
+
+        /**
+     * 测试Redis的HyperLogLog功能
+     *
+     * 该测试方法演示了如何使用Redis的HyperLogLog数据结构来统计大量数据的基数（去重计数）。
+     * 通过模拟一百万个用户数据的添加过程，验证HyperLogLog的准确性和性能表现。
+     *
+     * 测试流程：
+     * 1. 创建包含1000个元素的字符串数组作为批量操作的缓冲区
+     * 2. 循环生成一百万个用户数据，格式为"user_" + 序号
+     * 3. 每1000个数据为一批次添加到Redis的HyperLogLog结构中
+     * 4. 最后统计HyperLogLog中的基数大小并输出结果
+     */
+    @Test
+    void testHyperLogLog(){
+        String[] values = new String[1000];
+        // 批量添加数据到HyperLogLog，每1000个为一批次
+        for (int i = 0; i < 1000000; i++){
+            values[i%1000] = "user_" + i;
+            if (i % 1000 == 999){
+                stringRedisTemplate.opsForHyperLogLog().add("hl1", values);
+            }
+        }
+        // 统计数量
+        Long count = stringRedisTemplate.opsForHyperLogLog().size("hl1");
+        System.out.println("count = " + count);
+
+    }
+
 }
